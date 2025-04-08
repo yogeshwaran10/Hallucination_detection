@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Statement Verification</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+    }
+    .error {
+      color: red;
+    }
+    #editor {
+      border: 1px solid #ccc;
+      padding: 1rem;
+      min-height: 200px;
+      white-space: pre-wrap; /* preserve line breaks */
+    }
+  </style>
+</head>
+<body>
+  <h1>Enter Statements to Process</h1>
+  
+  {% if error %}
+    <p class="error">{{ error }}</p>
+  {% endif %}
+
+  <form method="POST" onsubmit="transferContent()">
+    <!-- Our contenteditable area: either empty or color-highlighted from the server -->
+    <div id="editor" contenteditable="true">
+      {{ content|safe }}
+    </div>
+    
+    <!-- Hidden input to carry over the final text to the server -->
+    <input type="hidden" id="hidden_input" name="hidden_input" value="" />
+
+    <br>
+    <button type="submit">Process</button>
+  </form>
+
+  <script>
+    function transferContent() {
+      // On submit, transfer the div’s innerText (raw text) to the hidden input
+      // so we can handle line-by-line processing on the backend.
+      // If you want the raw HTML (with highlights) to go back to the server, 
+      // use editor.innerHTML instead. But we need the plain text for re-verification 
+      // if the user edits lines.
+      let editor = document.getElementById('editor');
+      let hiddenField = document.getElementById('hidden_input');
+      // Get the raw text from the color-coded HTML
+      // We'll do .innerText so we only send plain statements to re-verify if needed
+      hiddenField.value = editor.innerText;
+    }
+  </script>
+</body>
+</html>

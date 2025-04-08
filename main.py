@@ -243,5 +243,100 @@ def orchestrate_complete_process():
     except Exception as e:
         console.print(f"[red]Error during statement verification: {e}[/red]")
 
+def execute_main_extraction_custom(statements_input):
+    """Runs the main extraction routine with a custom list of statements and saves information to a file."""
+    global statements
+    statements = statements_input  # Overwrite the global variable with custom input
+
+    with open("extracted_info.txt", "w", encoding="utf-8") as f:
+        for i, statement in enumerate(statements, 1):
+            console.rule(f"[bold yellow]Statement {i}")
+            console.print(f"[bold]Input Statement:[/bold] {statement}")
+            f.write(f"\n{'='*50} Statement {i} {'='*50}\n")
+            f.write(f"Input Statement: {statement}\n\n")
+            console.print("[bold]Searching and extracting information...[/bold]")
+            query = get_search_query(statement)
+            f.write(f"Search Query: {query}\n\n")
+            info = extract_information(statement)
+            f.write(f"Extracted Information:\n{info}\n\n")
+            try:
+                safe_query = escape(query)
+                safe_info = escape(info)
+                panel_content = Text.from_markup(f"[bold]Search Query:[/bold] {safe_query}\n\n{safe_info}")
+                console.print(Panel.fit(
+                    panel_content,
+                    title="Extracted Information",
+                    title_align="left",
+                    border_style="green"
+                ))
+            except Exception as e:
+                console.print(f"[red]Error displaying panel: {e}[/red]")
+                console.print("Information has been saved to file successfully.")
+        f.write("\nInformation extracted from multiple sources successfully.\n")
+
+    console.print("\n[bold green]Information saved to extracted_info.txt[/bold green]")
+
+
+def orchestrate_custom_process_with_results(statements_input):
+    """
+    Orchestrate the complete process with custom statements:
+      1. Extract information and save it.
+      2. Process detailed content and generate embeddings.
+      3. Verify statements using the created embeddings.
+    Returns a list of dicts: {
+       "statement": str,
+       "status": "INCORRECT"|"PARTIALLY CORRECT"|"CORRECT"|"OTHER",
+       "verification_result": str (the LLM's full response)
+    }
+    """
+    # Step 1: Extraction using custom statements
+    execute_main_extraction_custom(statements_input)
+
+    # Step 2: Process detailed content to generate FAISS embeddings
+    console.rule("[bold magenta]Processing Detailed Content & Generating Embeddings[/bold magenta]")
+    try:
+        import process_detailed_content
+        process_detailed_content.process_detailed_content()
+    except Exception as e:
+        console.print(f"[red]Error during detailed content processing: {e}[/red]")
+    
+    # Step 3: Verify statements using the FAISS index
+    results = []
+    try:
+        import verify_statements
+        # Load the FAISS embeddings
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        vector_store = verify_statements.load_embeddings()  # from verify_statements.py
+
+        for statement in statements_input:
+            # Perform semantic search to obtain context documents
+            context_docs = verify_statements.semantic_search(vector_store, statement)
+            # Use Groq LLM to verify the statement
+            verification_result = verify_statements.verify_statement_with_llm(statement, context_docs, groq_api_key)
+
+            # Determine status by scanning the LLM response
+            verification_result_upper = verification_result.upper()
+            if "INCORRECT" in verification_result_upper:
+                status = "INCORRECT"
+            elif "PARTIALLY CORRECT" in verification_result_upper:
+                status = "PARTIALLY CORRECT"
+            elif "CORRECT" in verification_result_upper:
+                status = "CORRECT"
+            else:
+                status = "OTHER"
+
+            results.append({
+                "statement": statement,
+                "status": status,
+                "verification_result": verification_result
+            })
+
+    except Exception as e:
+        console.print(f"[red]Error during statement verification: {e}[/red]")
+
+    return results
+
+
+
 if __name__ == "__main__":
     orchestrate_complete_process()
